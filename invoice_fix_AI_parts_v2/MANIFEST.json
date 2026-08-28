@@ -1,0 +1,88 @@
+{
+  "source_file": "invoice_fix.html",
+  "source_bytes": 49071,
+  "source_lines": 843,
+  "source_sha256": "49006fd605d8bbbd0d7f7563b7ec65ed2c05c64853930e19113214ea3efee6cf",
+  "max_part_bytes": 6500,
+  "part_count": 8,
+  "assembly": "Concatenate part files in numeric order with binary-safe concatenation. The resulting bytes must match source_sha256.",
+  "parts": [
+    {
+      "order": 1,
+      "file": "01-document-head-and-css-a.html",
+      "bytes": 6467,
+      "approx_source_lines": "1-178",
+      "role": "Document shell, <head>, CSS variables, decorations, header/table/totals CSS (first CSS section).",
+      "sha256": "b7d5563cb7791d778db538e6fbd4f117641bfb87b82c6aa1f607fb9e0151f5fa"
+    },
+    {
+      "order": 2,
+      "file": "02-css-b-and-document-body.html",
+      "bytes": 5932,
+      "approx_source_lines": "179-303",
+      "role": "Remaining CSS plus beginning of <body> and invoice header markup.",
+      "sha256": "9e6b36771091d8a875a23c04b5971e840b3c28d198912ca51de07d6b4975d5e4"
+    },
+    {
+      "order": 3,
+      "file": "03-embedded-logo-a.html",
+      "bytes": 6500,
+      "approx_source_lines": "304-304",
+      "role": "First continuation segment of the embedded base64 logo inside the <img> tag. Not standalone.",
+      "sha256": "0cb4bc0c16a720b073c93d025da6e23bbe641dab35a2de7d18a2884397a4c037"
+    },
+    {
+      "order": 4,
+      "file": "04-embedded-logo-b.html",
+      "bytes": 6500,
+      "approx_source_lines": "304-304",
+      "role": "Second continuation segment of the embedded base64 logo inside the same <img> tag. Not standalone.",
+      "sha256": "da6be0c880612d5eac3529565a7e201858ad1c98c6860f134340e2eca520cfb4"
+    },
+    {
+      "order": 5,
+      "file": "05-body-and-script-start.html",
+      "bytes": 6231,
+      "approx_source_lines": "304-393",
+      "role": "End of embedded logo line, remaining invoice body markup, action buttons, and start of JavaScript.",
+      "sha256": "424c54a2d2aaadf2eaaca0359a64a6f914ecc0fce9adade414afe574ae6242be"
+    },
+    {
+      "order": 6,
+      "file": "06-javascript-a.html",
+      "bytes": 6434,
+      "approx_source_lines": "394-527",
+      "role": "Main JavaScript logic: row handling, calculations, formatting, state, and related functions (first section).",
+      "sha256": "fd7c0f9ac6c3a05926ee8e0352e5cb31abe03faa1db91471a1098c902df627b0"
+    },
+    {
+      "order": 7,
+      "file": "07-javascript-b.html",
+      "bytes": 6429,
+      "approx_source_lines": "528-703",
+      "role": "Continuation of JavaScript logic, keyboard navigation, and event handling.",
+      "sha256": "41227101ae2f495ee06bb166b8828d6261e14ee8f7749ab34a90e77bbf30cb26"
+    },
+    {
+      "order": 8,
+      "file": "08-javascript-end.html",
+      "bytes": 4578,
+      "approx_source_lines": "704-843",
+      "role": "Final JavaScript/init code, closing </script>, </body>, and </html>.",
+      "sha256": "059c995493142a049ab17b9f1031c7e726d131b2593bc047e05314ccc442977a"
+    }
+  ],
+  "_ai_workflow": {
+    "source_model": "All numbered HTML files concatenate into one HTML document.",
+    "read_first": [
+      "AI_INSTRUCTIONS.md",
+      "README_AI.md",
+      "MANIFEST.json"
+    ],
+    "boundary_rule": "Fetch adjacent parts when a construct crosses a part boundary.",
+    "rebuild": [
+      "rebuild.bat",
+      "rebuild.py"
+    ]
+  }
+}

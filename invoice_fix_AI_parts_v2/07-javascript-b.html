@@ -1,0 +1,176 @@
+    tr.children[1].querySelector('textarea').value = data.keterangan || '';
+    tr.querySelector('.m2').value = data.m2 || '';
+    formatM2Input(tr.querySelector('.m2'));
+    tr.querySelector('.qty').value = data.qty || '';
+    tr.querySelector('.harga').value = data.harga || '';
+    formatHargaInput(tr.querySelector('.harga'));
+  }
+  tr.querySelectorAll('textarea').forEach(ta=>autoGrow(ta));
+  recalcRow(tr);
+}
+
+function delRow(btn){
+  btn.closest('tr').remove();
+  recalcTotal();
+}
+
+function recalcRow(tr){
+  const m2 = parseM2(tr.querySelector('.m2').value);
+  const qty = parseNum(tr.querySelector('.qty').value) || 0;
+  const harga = parseThousands(tr.querySelector('.harga').value) || 0;
+  const multiplier = m2 > 0 ? m2 : 1;
+  const jumlah = multiplier * qty * harga;
+  const cell = tr.querySelector('.jumlah');
+  cell.dataset.val = jumlah;
+  cell.textContent = formatRp(jumlah);
+  recalcTotal();
+}
+
+function recalcTotal(){
+  let total = 0;
+  document.querySelectorAll('#rows .jumlah').forEach(c=>{
+    total += parseFloat(c.dataset.val) || 0;
+  });
+  document.getElementById('totalOut').textContent = formatRp(total);
+  
+  const dpField = document.getElementById('dpInput');
+  const sisaRow = document.querySelector('.t-row.sisa');
+  const sisaEl = document.getElementById('sisaOut');
+
+  // Cek apakah DP diisi atau tidak
+  if (!dpField.value || dpField.value.trim() === '') {
+    sisaRow.style.display = 'none'; // Sembunyikan baris SISA
+    sisaEl.textContent = '';
+  } else {
+    sisaRow.style.display = 'flex'; // Tampilkan baris SISA
+    const dp = parseThousands(dpField.value) || 0;
+    const sisa = total - dp;
+    sisaEl.textContent = formatRp(sisa);
+  }
+}
+
+// Event listener format input khusus DP
+document.getElementById('dpInput').addEventListener('input', function() {
+  formatHargaInput(this);
+  recalcTotal();
+});
+
+// ---- Stample LUNAS ----
+function setLunas(active){
+  const stamp = document.getElementById('lunasStamp');
+  const btn = document.getElementById('lunasToggleBtn');
+  stamp.classList.toggle('active', active);
+  
+  if (active) {
+    btn.innerHTML = `<svg class="btn-icon icon-red" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg> <span style="color:var(--red)">Sembunyikan Lunas</span>`;
+  } else {
+    btn.innerHTML = `<svg class="btn-icon icon-red" viewBox="0 0 24 24"><path d="M11 21h-1l1-7H7.5c-.58 0-.57-.32-.38-.66.19-.34 4.54-7.85 4.54-7.85.31-.54 1-.58 1.48-.12L15 7l-2.43 6H16.5c.59 0 .58.33.39.67l-4.54 7.85c-.32.55-.99.58-1.48.11L11 21z"/></svg> <span style="color:var(--red)">Tandai Lunas</span>`;
+  }
+}
+
+function toggleLunas(){
+  const isActive = document.getElementById('lunasStamp').classList.contains('active');
+  setLunas(!isActive);
+}
+
+// ---- Stample LUNAS: drag & drop ----
+function setStampPosition(leftPct, topPct){
+  const stamp = document.getElementById('lunasStamp');
+  stamp.style.left = leftPct + '%';
+  stamp.style.top = topPct + '%';
+  stamp.style.right = 'auto';
+  stamp.dataset.leftPct = leftPct;
+  stamp.dataset.topPct = topPct;
+}
+
+(function initLunasDrag(){
+  const stamp = document.getElementById('lunasStamp');
+  const card = document.getElementById('card');
+  let dragging = false;
+  let startX = 0, startY = 0, startLeft = 0, startTop = 0;
+
+  stamp.addEventListener('pointerdown', function(e){
+    if(!stamp.classList.contains('active')) return;
+    dragging = true;
+    stamp.classList.add('dragging');
+    const cardRect = card.getBoundingClientRect();
+    const stampRect = stamp.getBoundingClientRect();
+    startLeft = stampRect.left - cardRect.left;
+    startTop = stampRect.top - cardRect.top;
+    startX = e.clientX;
+    startY = e.clientY;
+    stamp.style.right = 'auto';
+    stamp.style.left = startLeft + 'px';
+    stamp.style.top = startTop + 'px';
+    stamp.setPointerCapture(e.pointerId);
+    e.preventDefault();
+  });
+
+  stamp.addEventListener('pointermove', function(e){
+    if(!dragging) return;
+    const cardRect = card.getBoundingClientRect();
+    const stampRect = stamp.getBoundingClientRect();
+    let newLeft = startLeft + (e.clientX - startX);
+    let newTop = startTop + (e.clientY - startY);
+    newLeft = Math.max(0, Math.min(newLeft, cardRect.width - stampRect.width));
+    newTop = Math.max(0, Math.min(newTop, cardRect.height - stampRect.height));
+    stamp.style.left = newLeft + 'px';
+    stamp.style.top = newTop + 'px';
+  });
+
+  function endDrag(e){
+    if(!dragging) return;
+    dragging = false;
+    stamp.classList.remove('dragging');
+    const cardRect = card.getBoundingClientRect();
+    const leftPct = (parseFloat(stamp.style.left) / cardRect.width) * 100;
+    const topPct = (parseFloat(stamp.style.top) / cardRect.height) * 100;
+    setStampPosition(leftPct.toFixed(2), topPct.toFixed(2));
+  }
+  stamp.addEventListener('pointerup', endDrag);
+  stamp.addEventListener('pointercancel', endDrag);
+})();
+
+// ---- Keyboard nav ----
+function focusCell(tr, colIndex, cursorPos){
+  if(!tr) return false;
+  const td = tr.children[colIndex];
+  if(!td) return false;
+  const input = td.querySelector('input, textarea');
+  if(!input) return false;
+  input.focus();
+  if(typeof input.setSelectionRange === 'function'){
+    const pos = cursorPos === 'start' ? 0 : input.value.length;
+    input.setSelectionRange(pos, pos);
+  }
+  return true;
+}
+
+document.getElementById('rows').addEventListener('keydown', function(e){
+  const el = e.target;
+  if(el.tagName !== 'INPUT' && el.tagName !== 'TEXTAREA') return;
+  const td = el.closest('td');
+  const tr = td.closest('tr');
+  const cellIndex = Array.prototype.indexOf.call(tr.children, td);
+
+  if(e.key === 'ArrowUp'){
+    e.preventDefault();
+    focusCell(tr.previousElementSibling, cellIndex, 'end');
+  } else if(e.key === 'ArrowDown'){
+    e.preventDefault();
+    if(tr.nextElementSibling){
+      focusCell(tr.nextElementSibling, cellIndex, 'end');
+    } else {
+      addRow();
+      focusCell(document.getElementById('rows').lastElementChild, cellIndex, 'end');
+    }
+  } else if(e.key === 'ArrowLeft'){
+    if(el.selectionStart === 0 && el.selectionEnd === 0){
+      let idx = cellIndex - 1;
+      while(idx >= 0 && !tr.children[idx].querySelector('input, textarea')) idx--;
+      if(idx >= 0){
+        e.preventDefault();
+        focusCell(tr, idx, 'end');
+      }
+    }
+  } else if(e.key === 'ArrowRight'){

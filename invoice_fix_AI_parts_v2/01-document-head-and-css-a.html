@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Invoice — Pamulang Printing</title>
+<style>
+:root{
+  --teal: #079d8f;
+  --teal-dark: #067d72;
+  --teal-pale: #eef8f7;
+  --teal-soft: #dff2ef;
+  --navy: #112f52;
+  --yellow: #f5b41b;
+  --ink: #15283d;
+  --muted: #667689;
+  --line: #dfe7e8;
+  --red: #ef3d43;
+  --white: #fff;
+  --bg-gray: #f4f7f6;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  padding: 20px 20px;
+  background: var(--bg-gray);
+  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Dekorasi Geometris Atas */
+.top-decoration {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 60px; 
+  overflow: hidden;
+  border-top-left-radius: 12px;
+  border-top-right-radius: 12px;
+  pointer-events: none;
+  z-index: 0;
+}
+.shape-yellow {
+  position: absolute;
+  top: 0; left: 0;
+  width: 55%; height: 30px; 
+  background: var(--yellow);
+  clip-path: polygon(0 0, 100% 0, 95% 100%, 0 100%);
+}
+.shape-green {
+  position: absolute;
+  top: 0; left: 0;
+  width: 45%; height: 30px; 
+  background: var(--teal);
+  clip-path: polygon(0 0, 100% 0, 85% 100%, 0 100%);
+}
+
+.card{
+  max-width: 1040px;
+  margin: 0 auto;
+  background: var(--white);
+  padding: 28px 34px 34px;
+  border-radius: 12px;
+  box-shadow: 0 12px 38px rgba(17,47,82,.06);
+  position: relative;
+}
+
+/* Header */
+.head{
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  position: relative;
+  z-index: 1;
+  margin-top: 6px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--line);
+}
+.brand{display:flex;gap:18px;align-items:flex-start;min-width:0}
+.logo{width:60px;height:60px;flex:none; object-fit: contain; margin-top:10px;}
+.brand-text{min-width:0;padding-top:0; display: flex; flex-direction: column; gap: 8px;}
+
+.company-name{
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+  display: flex;
+  gap: 8px;
+  outline: none;
+}
+.company-name .navy-text { color: var(--navy); }
+.company-name .teal-text { color: var(--teal); }
+
+.contact-group { display: flex; flex-direction: column; gap: 6px; }
+.contact{font-size:13px;color:#40546b;display:flex;align-items:center;gap:8px}
+.contact-icon{
+  flex:none;color:var(--teal);
+  display:flex;align-items:center;justify-content:center;
+}
+.contact-icon svg{display:block}
+.contact-lines { display: flex; flex-direction: column; gap: 2px; justify-content:center; }
+.contact input{
+  border:none;background:transparent;font-family:inherit;color:#40546b;
+  font-size:13px;outline:none; width: 260px; padding: 0; margin: 0; line-height: 16px;
+}
+
+.head-right{
+  text-align:right;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+.inv-title{font-size:32px;line-height:1;font-weight:800;color:var(--teal);letter-spacing:1px;margin:0 0 12px}
+.meta-row{display:flex;align-items:center;justify-content:flex-end;gap:14px;font-size:13px;margin-bottom:8px;color:var(--ink)}
+.meta-row label{color:var(--ink);width:auto;text-align:right;white-space:nowrap; font-weight: 500;}
+.meta-row input{
+  border:none;background:var(--teal-pale);border-radius:18px;font-family:inherit;
+  text-align:center;padding:7px 16px;color:var(--navy);font-size:13px;font-weight:500;width:170px;height:32px;outline:none
+}
+
+/* Stamp Lunas */
+.lunas-stamp{display:none;position:absolute;top:200px;right:70px;z-index:6;cursor:move;touch-action:none;user-select:none}
+.lunas-stamp.active{display:block}.lunas-stamp.dragging{opacity:.7}
+.lunas-stamp-text{position:relative;display:inline-block;border:4px solid var(--red);border-radius:9px;color:var(--red);font-weight:800;font-size:24px;letter-spacing:4px;text-transform:uppercase;padding:8px 20px;transform:rotate(-12deg);opacity:.85;pointer-events:none}
+.lunas-stamp-text::after{content:'';position:absolute;inset:4px;border:1.5px solid var(--red);border-radius:4px}
+
+/* Bill to */
+.billto{
+  margin-top: 16px;
+  padding: 12px 18px;
+  border: 1px solid #e2e8ea;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.bill-icon{width:22px;height:22px;flex:none;color:var(--teal);display:flex;align-items:center;justify-content:center}
+.billto-copy{min-width:0;display:flex;flex-direction:column;gap:2px; width: 100%;}
+.billto label{font-size:12px;font-weight:700;color:var(--teal);display:block;margin:0}
+.billto input{border:none;background:transparent;font-family:inherit;font-size:15px;font-weight:700;padding:0;outline:none;width:100%;color:var(--navy)}
+
+/* Table */
+.table-wrap{margin-top:14px;overflow-x:auto}
+table{width:100%;border-collapse:separate;border-spacing:0;min-width:800px;overflow:hidden;border:1px solid #e1e7e8;border-radius:10px}
+thead th{background:var(--teal);color:#fff;font-size:12px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;padding:10px 12px;text-align:left;border-bottom:none}
+thead th.num{text-align:center}
+thead th.right{text-align:right}
+tbody td{padding:9px 12px;border-bottom:1px solid #edf1f1;font-size:13px;vertical-align:middle;background:#fff}
+tbody tr:last-child td{border-bottom:none}
+tbody tr:nth-child(even) td{background:var(--bg-gray)}
+tbody input{width:100%;border:none;background:transparent;font-family:inherit;font-size:13px;padding:3px 0;color:var(--ink);outline:none}
+tbody textarea{width:100%;border:none;background:transparent;font-family:inherit;font-size:13px;padding:3px 0;color:var(--ink);resize:none;overflow:hidden;display:block;line-height:1.4;white-space:pre-wrap;word-break:break-word;box-sizing:border-box;outline:none}
+tbody input.r-num{text-align:center}
+td.jumlah{text-align:right;font-weight:500;white-space:nowrap;color:var(--navy)}
+td.del{text-align:center;width:46px}
+.del-btn{border:none;background:none;color:var(--red);cursor:pointer;padding:6px;display:inline-flex;align-items:center;justify-content:center;border-radius:6px}
+.del-btn:hover{background:#fff0f1}
+.del-btn svg{width:18px;height:18px;display:block}
+
+/* Table Actions & Totals */
+.table-actions-row{display:flex;justify-content:space-between;align-items:flex-start;margin-top:14px;}
+.add-row-btn{
+  border: 1.5px dashed var(--teal);
+  background: #fff;
+  color: var(--teal);
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.add-row-btn:hover{background:var(--teal-pale)}
+.totals{width: 340px;}
