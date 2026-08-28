@@ -1,0 +1,143 @@
+    .workspace{min-width:0;display:flex;align-items:flex-start;justify-content:center;padding:6px 0 0}
+    .invoice-frame{
+      width:100%;
+      max-width:1120px;
+      padding:16px;
+      border-radius:20px;
+      background:rgba(255,255,255,.58);
+      border:1px solid rgba(255,255,255,.78);
+      box-shadow:0 32px 80px rgba(17,47,82,.12);
+      backdrop-filter:blur(18px);
+      animation:paperIn .6s .08s ease both;
+    }
+    .card{
+      width:100%;
+      min-height:720px;
+      background:linear-gradient(180deg, #ffffff 0%, var(--paper) 100%);
+      padding:14px 34px 26px;
+      border-radius:14px;
+      box-shadow:inset 0 0 0 1px rgba(17,47,82,.05), 0 18px 46px rgba(17,47,82,.08);
+      position:relative;
+      overflow:hidden;
+    }
+    .top-decoration{
+      position:absolute;
+      top:0;left:0;right:0;
+      height:56px;
+      pointer-events:none;
+      z-index:0;
+      overflow:hidden;
+    }
+    .shape-yellow,
+    .shape-green,
+    .shape-mist{position:absolute;top:0;left:0;height:15px}
+    .shape-yellow{width:45%;background:var(--yellow);clip-path:polygon(0 0,100% 0,92% 100%,0 100%)}
+    .shape-green{width:36%;background:var(--teal);clip-path:polygon(0 0,100% 0,82% 100%,0 100%)}
+    .shape-mist{right:-120px;left:auto;width:38%;height:56px;background:linear-gradient(135deg, rgba(7,157,143,.1), transparent);clip-path:polygon(28% 0,100% 0,78% 100%,0 100%)}
+
+    .head{
+      display:flex;
+      justify-content:space-between;
+      align-items:flex-start;
+      gap:28px;
+      position:relative;
+      z-index:1;
+      padding-top:14px;
+      padding-bottom:14px;
+    }
+    .brand{display:flex;gap:16px;align-items:flex-start;min-width:0}
+    .logo{width:62px;height:62px;flex:none;display:flex;align-items:center;justify-content:center;margin-top:1px}
+    .brand-text{min-width:0;display:flex;flex-direction:column;gap:9px}
+    .company-name{
+      display:flex;
+      gap:7px;
+      outline:none;
+      font-size:23px;
+      font-weight:850;
+      letter-spacing:-.5px;
+      line-height:1.15;
+    }
+    .company-name .navy-text{color:var(--navy)}
+    .company-name .teal-text{color:var(--teal)}
+    .contact-group{display:flex;flex-direction:column;gap:7px}
+    .contact{display:flex;align-items:flex-start;gap:10px;color:#40546b;font-size:13px}
+    .contact-icon{flex:none;color:var(--teal);display:flex;align-items:center;justify-content:center;margin-top:1px}
+    .contact-icon svg{display:block}
+    .contact-lines{display:flex;flex-direction:column;gap:2px;justify-content:center}
+    .contact input{
+      width:292px;
+      border:none;
+      outline:none;
+      padding:0;
+      margin:0;
+      background:transparent;
+      color:#40546b;
+      font:inherit;
+      line-height:17px;
+    }
+    input::placeholder,textarea::placeholder{color:#94a3b8}
+    input:focus,textarea:focus,select:focus,[contenteditable="true"]:focus{outline:none;box-shadow:none}
+    .head-right{display:flex;flex-direction:column;align-items:flex-end;text-align:right;min-width:280px}
+    .inv-title{
+      margin:0 0 15px;
+      color:var(--teal);
+      font-size:36px;
+      font-weight:850;
+      letter-spacing:2px;
+      line-height:1;
+    }
+    .meta-row{display:flex;align-items:center;justify-content:flex-end;gap:16px;margin-bottom:10px;color:var(--navy);font-size:13px}
+    .meta-row label{font-weight:650;white-space:nowrap}
+    .meta-row input{
+      width:172px;
+      min-height:36px;
+      border:none;
+      border-radius:999px;
+      padding:8px 18px;
+      text-align:center;
+      color:var(--navy);
+      background:linear-gradient(180deg, #f3f7f7, #eaf0f0);
+      font:inherit;
+      font-weight:650;
+      letter-spacing:.2px;
+      box-shadow:inset 0 1px 0 rgba(255,255,255,.8);
+    }
+
+    .lunas-stamp{display:none;position:absolute;top:200px;right:70px;z-index:6;cursor:move;touch-action:none;user-select:none}
+    .lunas-stamp.active{display:block}
+    .lunas-stamp.dragging{opacity:.7}
+    .lunas-stamp-text{
+      position:relative;
+      display:inline-block;
+      border:4px solid var(--red);
+      border-radius:9px;
+      color:var(--red);
+      font-weight:850;
+      font-size:24px;
+      letter-spacing:4px;
+      text-transform:uppercase;
+      padding:8px 20px;
+      transform:rotate(-12deg);
+      opacity:.85;
+      pointer-events:none;
+    }
+    .lunas-stamp-text::after{content:"";position:absolute;inset:4px;border:1.5px solid var(--red);border-radius:4px}
+
+    .billto{
+      position:relative;
+      z-index:1;
+      margin-top:2px;
+      padding:16px 18px;
+      display:flex;
+      align-items:center;
+      gap:14px;
+      border:1px solid rgba(17,47,82,.08);
+      border-radius:10px;
+      background:rgba(255,255,255,.72);
+      box-shadow:0 12px 28px rgba(17,47,82,.04);
+    }
+    .bill-icon{width:28px;height:28px;flex:none;color:var(--teal);display:flex;align-items:center;justify-content:center}
+    .billto-copy{min-width:0;width:100%;display:flex;flex-direction:column;gap:3px}
+    .billto label{display:block;margin:0;color:var(--teal);font-size:12px;font-weight:800;letter-spacing:.2px}
+    .billto input{width:100%;border:none;background:transparent;color:var(--navy);font:inherit;font-size:16px;font-weight:800;padding:0}
+

@@ -1,0 +1,111 @@
+    function resetSettings(){
+      if(!confirm('Kembalikan alamat, email, WhatsApp, dan syarat & ketentuan ke pengaturan default?')) return;
+      try{ localStorage.removeItem(SETTINGS_KEY); }catch(err){}
+      applySettings(DEFAULT_SETTINGS);
+      document.getElementById('setAddr1').value = DEFAULT_SETTINGS.addr1;
+      document.getElementById('setAddr2').value = DEFAULT_SETTINGS.addr2;
+      document.getElementById('setEmail').value = DEFAULT_SETTINGS.email;
+      document.getElementById('setWa').value = DEFAULT_SETTINGS.wa;
+      document.getElementById('setTerms').value = DEFAULT_SETTINGS.terms.join('\n');
+      document.getElementById('setCatalog').value = '';
+      sigData = '';
+      stampData = '';
+      document.getElementById('setSignatureFile').value = '';
+      document.getElementById('setStampFile').value = '';
+      refreshSigPreviews();
+      renderSignatureBlock(DEFAULT_SETTINGS);
+      settingsStatus('Pengaturan dikembalikan ke default.');
+      showToast('Pengaturan dikembalikan ke default');
+    }
+
+    document.getElementById('settingsModal').addEventListener('mousedown', function(e){
+      if(e.target === this) closeSettings();
+    });
+    document.getElementById('historyModal').addEventListener('mousedown', function(e){
+      if(e.target === this) closeHistory();
+    });
+    document.addEventListener('keydown', function(e){
+      if(e.key !== 'Escape') return;
+      if(document.getElementById('settingsModal').classList.contains('open')){
+        closeSettings();
+      }else if(document.getElementById('historyModal').classList.contains('open')){
+        closeHistory();
+      }
+    });
+
+    document.addEventListener('mousedown', function(e){
+      if(!e.target.closest('.product-field') && !e.target.closest('#productSuggestBox')){
+        hideProductSuggestions();
+      }
+    });
+
+    // Any invoice edit updates the local draft without touching settings data.
+    document.addEventListener('input', function(e){
+      if(e.target.closest('#settingsModal')) return;
+      if(e.target.id === 'invNo') syncInvoiceSequence(e.target.value);
+      scheduleAutosave();
+    });
+    document.addEventListener('change', function(e){
+      if(e.target.closest('#settingsModal')) return;
+      scheduleAutosave();
+    });
+
+    // ---- Tema terang / gelap ----
+    const THEME_KEY = 'pp_invoice_theme_v1';
+    const THEMES = ['light','dark','glass'];
+    const THEME_ICONS = {
+      light: '<circle cx="12" cy="12" r="4.2"></circle><line x1="12" y1="2.4" x2="12" y2="4.6"></line><line x1="12" y1="19.4" x2="12" y2="21.6"></line><line x1="4.2" y1="4.2" x2="5.8" y2="5.8"></line><line x1="18.2" y1="18.2" x2="19.8" y2="19.8"></line><line x1="2.4" y1="12" x2="4.6" y2="12"></line><line x1="19.4" y1="12" x2="21.6" y2="12"></line><line x1="4.2" y1="19.8" x2="5.8" y2="18.2"></line><line x1="18.2" y1="5.8" x2="19.8" y2="4.2"></line>',
+      dark: '<path d="M20.5 14.4A8.6 8.6 0 0 1 9.6 3.5a8.7 8.7 0 1 0 10.9 10.9z"></path>',
+      glass: '<rect x="3.2" y="4.6" width="12.4" height="12.4" rx="3"></rect><rect x="8.4" y="7" width="12.4" height="12.4" rx="3"></rect>'
+    };
+    const THEME_LABELS = { light:'Mode Terang', dark:'Mode Gelap', glass:'Mode Glass' };
+
+    function applyTheme(mode){
+      if(THEMES.indexOf(mode) === -1) mode = 'light';
+      document.body.classList.toggle('theme-dark', mode === 'dark');
+      document.body.classList.toggle('theme-glass', mode === 'glass');
+
+      const label = document.getElementById('themeLabel');
+      if(label) label.textContent = THEME_LABELS[mode];
+      const icon = document.getElementById('themeIcon');
+      if(icon) icon.innerHTML = THEME_ICONS[mode];
+
+      document.querySelectorAll('.theme-opt').forEach(btn=>{
+        btn.classList.toggle('active', btn.dataset.theme === mode);
+      });
+    }
+
+    function setTheme(mode){
+      applyTheme(mode);
+      try{ localStorage.setItem(THEME_KEY, mode); }catch(err){}
+    }
+
+    function toggleTheme(){
+      const current = document.body.classList.contains('theme-glass') ? 'glass'
+        : (document.body.classList.contains('theme-dark') ? 'dark' : 'light');
+      setTheme(THEMES[(THEMES.indexOf(current) + 1) % THEMES.length]);
+    }
+
+    function loadTheme(){
+      let saved = null;
+      try{ saved = localStorage.getItem(THEME_KEY); }catch(err){}
+      applyTheme(THEMES.indexOf(saved) !== -1 ? saved : 'light');
+    }
+
+    loadTheme();
+    loadSettings();
+
+    const savedDraft = readDraft();
+    if(savedDraft && confirm('Draft invoice otomatis ditemukan. Muat kembali draft terakhir?')){
+      applyInvoiceData(savedDraft);
+      setAutosaveStatus('Draft terakhir dipulihkan');
+    }else{
+      if(savedDraft) clearDraft();
+      setDefaultMeta(true);
+      for(let i=0;i<3;i++) addRow();
+      recalcTotal();
+      scheduleAutosave();
+    }
+  </script>
+</body>
+</html>

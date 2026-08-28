@@ -1,0 +1,168 @@
+    function selectCatalogProduct(tr, item){
+      if(!tr || !item) return hideProductSuggestions();
+      const productInput = tr.querySelector('.produk');
+      if(!productInput) return hideProductSuggestions();
+      const descriptionInput = tr.children[1] ? tr.children[1].querySelector('textarea') : null;
+      const priceInput = tr.querySelector('.harga');
+      productInput.value = item.name;
+      if(item.description && descriptionInput && !descriptionInput.value.trim()) descriptionInput.value = item.description;
+      if(item.harga && priceInput && !priceInput.value.trim()){
+        priceInput.value = item.harga;
+        formatHargaInput(priceInput);
+      }
+      if(item.tiers){
+        setRowTiers(tr, parseTiers(item.tiers));
+        delete tr.dataset.autoPrice;
+      }
+      hideProductSuggestions();
+      autoGrow(productInput);
+      if(descriptionInput) autoGrow(descriptionInput);
+      recalcRow(tr);
+      productInput.focus();
+      scheduleAutosave();
+    }
+
+    // Click (delegated) on the global popup
+    document.getElementById('productSuggestBox').addEventListener('click', function(e){
+      const btn = e.target.closest('.product-suggestion');
+      if(!btn || !productSugCtx) return;
+      selectCatalogProduct(productSugCtx.tr, productSugCtx.matches[parseInt(btn.dataset.index, 10)]);
+    });
+
+    // Delegated typing/focus on the products table (works for all rows, incl. new ones)
+    const rowsTbody = document.getElementById('rows');
+    rowsTbody.addEventListener('input', function(e){
+      if(e.target.classList && e.target.classList.contains('produk')){
+        showProductSuggestions(e.target.closest('tr'), e.target.value);
+      }
+    });
+    // Autocomplete hanya muncul saat mulai mengetik, bukan saat cursor ditempatkan
+    rowsTbody.addEventListener('keydown', function(e){
+      const el = e.target;
+      if(!(el.classList && el.classList.contains('produk'))) return;
+      const box = document.getElementById('productSuggestBox');
+      if(!box.classList.contains('open') || !productSugCtx) return;
+      if(e.key === 'ArrowDown'){
+        e.preventDefault();
+        productSugIndex = Math.min(productSugIndex + 1, productSugCtx.matches.length - 1);
+        renderProductSuggestions();
+      } else if(e.key === 'ArrowUp'){
+        e.preventDefault();
+        productSugIndex = Math.max(productSugIndex - 1, 0);
+        renderProductSuggestions();
+      } else if(e.key === 'Enter'){
+        e.preventDefault();
+        selectCatalogProduct(productSugCtx.tr, productSugCtx.matches[Math.max(productSugIndex, 0)]);
+      } else if(e.key === 'Escape'){
+        hideProductSuggestions();
+      }
+    });
+
+    function bindProductAutocomplete(tr){
+      // Delegated on #rows; kept as no-op for backward compatibility
+    }
+
+    // ---- Customer Autocomplete ----
+    const CUST_KEY = 'pp_invoice_customers_v1';
+
+    function readCustomers(){
+      try{
+        const raw = localStorage.getItem(CUST_KEY);
+        const items = raw ? JSON.parse(raw) : [];
+        return Array.isArray(items) ? items : [];
+      }catch(err){ return []; }
+    }
+
+    function writeCustomers(items){
+      try{ localStorage.setItem(CUST_KEY, JSON.stringify(items.slice(0, 200))); }catch(err){}
+    }
+
+    function recordCustomer(name){
+      const trimmed = String(name || '').trim();
+      if(!trimmed || trimmed.length < 2) return;
+      const items = readCustomers();
+      const existing = items.findIndex(c => c.toLowerCase() === trimmed.toLowerCase());
+      if(existing >= 0) items.splice(existing, 1);
+      items.unshift(trimmed);
+      writeCustomers(items);
+    }
+
+    function showCustSuggestions(query){
+      const box = document.getElementById('custSuggestions');
+      const customers = readCustomers();
+      if(!customers.length){ box.classList.remove('open'); return; }
+      const needle = String(query || '').trim().toLowerCase();
+      const matches = customers.filter(name => !needle || name.toLowerCase().includes(needle)).slice(0, 8);
+      box.innerHTML = matches.map((name, i) => `
+        <button type="button" class="cust-suggestion" data-index="${i}">
+          ${escapeHtml(name)}
+        </button>`).join('');
+      box.querySelectorAll('.cust-suggestion').forEach((btn, i) => {
+        btn.addEventListener('mousedown', e => e.preventDefault());
+        btn.addEventListener('click', () => {
+          document.getElementById('custName').value = matches[i];
+          box.classList.remove('open');
+          scheduleAutosave();
+        });
+      });
+      box.classList.toggle('open', matches.length > 0);
+      if(matches.length){
+        const rect = document.getElementById('custName').getBoundingClientRect();
+        box.style.position = 'fixed';
+        box.style.left = `${rect.left}px`;
+        box.style.top = `${rect.bottom + 3}px`;
+        box.style.width = `${Math.max(rect.width, 200)}px`;
+      }
+    }
+
+    function hideCustSuggestions(){
+      const box = document.getElementById('custSuggestions');
+      box.classList.remove('open');
+      box.style.position = '';
+      box.style.left = '';
+      box.style.top = '';
+      box.style.width = '';
+    }
+
+    // Bind customer autocomplete events
+    document.getElementById('custName').addEventListener('input', function(){
+      showCustSuggestions(this.value);
+    });
+    // Autocomplete customer hanya muncul saat mulai mengetik
+    document.addEventListener('mousedown', function(e){
+      if(!e.target.closest('.billto-field')) hideCustSuggestions();
+    });
+
+    // ---- Duplicate Invoice from History ----
+    function duplicateInvoice(index){
+      const item = readHistory()[index];
+      if(!item || !item.data) return;
+      const newData = JSON.parse(JSON.stringify(item.data));
+      newData.invNo = nextInvoiceNumber(true);
+      newData.invDate = (() => {
+        const now = new Date();
+        const dd = String(now.getDate()).padStart(2,'0');
+        const mm = String(now.getMonth()+1).padStart(2,'0');
+        const yyyy = now.getFullYear();
+        return `${dd} - ${mm} - ${yyyy}`;
+      })();
+      newData.lunas = false;
+      newData.lunasPos = null;
+      newData.discount = newData.discount || '';
+      newData.tax = newData.tax || '';
+      newData.dp = newData.dp || '';
+      applyInvoiceData(newData);
+      closeHistory();
+      setAutosaveStatus('Invoice diduplikasi dari riwayat');
+      showToast('Invoice diduplikasi dengan nomor baru');
+    }
+
+    // ---- m² Calculator ----
+    let m2CalcTarget = null;
+    let lastM2Input = null; // track which m² input was last focused/clicked
+    let m2CalcUnit = 'cm'; // 'cm' or 'm'
+
+    function m2Factor(){
+      return m2CalcUnit === 'm' ? 1 : 100;
+    }
+

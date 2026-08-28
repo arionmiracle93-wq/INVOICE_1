@@ -1,0 +1,172 @@
+    function closeTierEditor(){
+      document.getElementById('tierPopover').classList.remove('open');
+      tierEditorRow = null;
+    }
+
+    function saveTiers(){
+      const tiers = parseTiers(document.getElementById('tierEditorText').value);
+      if(tierEditorRow){
+        setRowTiers(tierEditorRow, tiers);
+        delete tierEditorRow.dataset.autoPrice;
+        // Jika tier kosong, kembalikan tampilan ke harga dasar
+        if(!tiers.length){
+          const inp = tierEditorRow.querySelector('.harga');
+          if(inp && tierEditorRow.dataset.baseHarga){
+            inp.value = parseFloat(tierEditorRow.dataset.baseHarga).toLocaleString('id-ID');
+          }
+        }
+        recalcRow(tierEditorRow);
+      }
+      closeTierEditor();
+      scheduleAutosave();
+      showToast(tiers.length ? `Harga bertingkat aktif (${tiers.length} tier)` : 'Harga bertingkat dinonaktifkan');
+    }
+
+    document.addEventListener('mousedown', function(e){
+      if(!e.target.closest('.tier-popover') && !e.target.closest('.tier-btn')){
+        closeTierEditor();
+      }
+    });
+    document.addEventListener('keydown', function(e){
+      if(e.key === 'Escape' && document.getElementById('tierPopover').classList.contains('open')){
+        closeTierEditor();
+      }
+    });
+
+    function parseRate(value){
+      const normalized = String(value || '').replace(',', '.').replace(/[^0-9.]/g,'');
+      const rate = parseFloat(normalized);
+      if(isNaN(rate)) return 0;
+      return Math.max(0, Math.min(100, rate));
+    }
+
+    function formatRateInput(input){
+      const raw = input.value.replace(',', '.').replace(/[^0-9.]/g,'');
+      if(!raw){ input.value = ''; return; }
+      const rate = parseRate(raw);
+      input.value = String(rate).replace('.', ',');
+    }
+
+    function getInvoiceTotals(){
+      let subtotal = 0;
+      document.querySelectorAll('#rows .jumlah').forEach(c=>{
+        subtotal += parseFloat(c.dataset.val) || 0;
+      });
+      const discountRate = parseRate(document.getElementById('discountInput').value);
+      const discountAmount = subtotal * discountRate / 100;
+      const taxable = Math.max(0, subtotal - discountAmount);
+      const taxRate = parseRate(document.getElementById('taxInput').value);
+      const taxAmount = taxable * taxRate / 100;
+      const total = taxable + taxAmount;
+      return {subtotal, discountRate, discountAmount, taxRate, taxAmount, total};
+    }
+
+    function recalcTotal(){
+      const totals = getInvoiceTotals();
+      document.getElementById('subtotalOut').textContent = formatRp(totals.subtotal);
+      document.getElementById('discountOut').textContent = totals.discountAmount ? '- ' + formatRp(totals.discountAmount) : formatRp(0);
+      document.getElementById('taxOut').textContent = formatRp(totals.taxAmount);
+      document.getElementById('totalOut').textContent = formatRp(totals.total);
+
+      const dpField = document.getElementById('dpInput');
+      const sisaRow = document.querySelector('.t-row.sisa');
+      const sisaEl = document.getElementById('sisaOut');
+
+      if (!dpField.value || dpField.value.trim() === '') {
+        sisaRow.style.display = 'none';
+        sisaEl.textContent = '';
+      } else {
+        sisaRow.style.display = 'flex';
+        const dp = parseThousands(dpField.value) || 0;
+        const sisa = totals.total - dp;
+        sisaEl.textContent = formatRp(sisa);
+      }
+    }
+
+    document.getElementById('dpInput').addEventListener('input', function() {
+      formatHargaInput(this);
+      recalcTotal();
+    });
+    document.querySelectorAll('#discountInput, #taxInput').forEach(input => {
+      input.addEventListener('input', function(){
+        formatRateInput(this);
+        recalcTotal();
+      });
+    });
+
+    function setLunas(active){
+      const stamp = document.getElementById('lunasStamp');
+      const btn = document.getElementById('lunasToggleBtn');
+      stamp.classList.toggle('active', active);
+
+      if (active) {
+        btn.innerHTML = `<svg class="btn-icon icon-red" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg> <span style="color:var(--red)">Sembunyikan Lunas</span>`;
+      } else {
+        btn.innerHTML = `<svg class="btn-icon icon-red icon-fill" viewBox="0 0 24 24"><path d="M13.6 2.4 5.2 13.1c-.4.5 0 1.3.7 1.3h4.3l-1.3 7.2 8.6-10.8c.4-.5 0-1.3-.7-1.3h-4.4l1.2-7.1z"></path></svg> <span style="color:var(--red)">Tandai Lunas</span>`;
+      }
+    }
+
+    function toggleLunas(){
+      const isActive = document.getElementById('lunasStamp').classList.contains('active');
+      setLunas(!isActive);
+      scheduleAutosave();
+    }
+
+    function setStampPosition(leftPct, topPct){
+      const stamp = document.getElementById('lunasStamp');
+      stamp.style.left = leftPct + '%';
+      stamp.style.top = topPct + '%';
+      stamp.style.right = 'auto';
+      stamp.dataset.leftPct = leftPct;
+      stamp.dataset.topPct = topPct;
+    }
+
+    (function initLunasDrag(){
+      const stamp = document.getElementById('lunasStamp');
+      const card = document.getElementById('card');
+      let dragging = false;
+      let startX = 0, startY = 0, startLeft = 0, startTop = 0;
+
+      stamp.addEventListener('pointerdown', function(e){
+        if(!stamp.classList.contains('active')) return;
+        dragging = true;
+        stamp.classList.add('dragging');
+        const cardRect = card.getBoundingClientRect();
+        const stampRect = stamp.getBoundingClientRect();
+        startLeft = stampRect.left - cardRect.left;
+        startTop = stampRect.top - cardRect.top;
+        startX = e.clientX;
+        startY = e.clientY;
+        stamp.style.right = 'auto';
+        stamp.style.left = startLeft + 'px';
+        stamp.style.top = startTop + 'px';
+        stamp.setPointerCapture(e.pointerId);
+        e.preventDefault();
+      });
+
+      stamp.addEventListener('pointermove', function(e){
+        if(!dragging) return;
+        const cardRect = card.getBoundingClientRect();
+        const stampRect = stamp.getBoundingClientRect();
+        let newLeft = startLeft + (e.clientX - startX);
+        let newTop = startTop + (e.clientY - startY);
+        newLeft = Math.max(0, Math.min(newLeft, cardRect.width - stampRect.width));
+        newTop = Math.max(0, Math.min(newTop, cardRect.height - stampRect.height));
+        stamp.style.left = newLeft + 'px';
+        stamp.style.top = newTop + 'px';
+      });
+
+      function endDrag(e){
+        if(!dragging) return;
+        dragging = false;
+        stamp.classList.remove('dragging');
+        const cardRect = card.getBoundingClientRect();
+        const leftPct = (parseFloat(stamp.style.left) / cardRect.width) * 100;
+        const topPct = (parseFloat(stamp.style.top) / cardRect.height) * 100;
+        setStampPosition(leftPct.toFixed(2), topPct.toFixed(2));
+        scheduleAutosave();
+      }
+      stamp.addEventListener('pointerup', endDrag);
+      stamp.addEventListener('pointercancel', endDrag);
+    })();
+

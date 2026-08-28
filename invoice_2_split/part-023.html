@@ -1,0 +1,158 @@
+    function readHistory(){
+      try{
+        const raw = localStorage.getItem(HISTORY_KEY);
+        const items = raw ? JSON.parse(raw) : [];
+        return Array.isArray(items) ? items : [];
+      }catch(err){
+        return [];
+      }
+    }
+
+    function writeHistory(items){
+      try{ localStorage.setItem(HISTORY_KEY, JSON.stringify(items.slice(0, 30))); }catch(err){}
+    }
+
+    function recordHistory(data){
+      const items = readHistory();
+      const record = {
+        id: data.invNo || `invoice-${Date.now()}`,
+        invNo: data.invNo || 'Tanpa nomor',
+        invDate: data.invDate || '',
+        custName: data.custName || 'Tanpa nama customer',
+        totalAmount: data.totalAmount || 0,
+        savedAt: new Date().toISOString(),
+        data: data
+      };
+      const existing = items.findIndex(item => item.id === record.id);
+      if(existing >= 0) items.splice(existing, 1);
+      items.unshift(record);
+      writeHistory(items);
+      // Also record customer name for autocomplete
+      recordCustomer(data.custName);
+    }
+
+    function openHistory(){
+      const monthInput = document.getElementById('historyMonth');
+      if(monthInput && !monthInput.value){
+        const now = new Date();
+        monthInput.value = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+      }
+      renderHistory();
+      document.getElementById('historyModal').classList.add('open');
+    }
+
+    function closeHistory(){
+      document.getElementById('historyModal').classList.remove('open');
+    }
+
+    function renderHistory(){
+      const list = document.getElementById('historyList');
+      const items = readHistory();
+      if(!items.length){
+        list.innerHTML = '<div class="history-empty">Belum ada invoice tersimpan. Gunakan menu Simpan untuk menambahkan invoice ke riwayat.</div>';
+        return;
+      }
+      list.innerHTML = items.map((item, index) => `
+        <div class="history-item">
+          <div class="history-main">
+            <div class="history-no">${escapeHtml(item.invNo || 'Tanpa nomor')}</div>
+            <div class="history-customer">${escapeHtml(item.custName || 'Tanpa nama customer')}</div>
+            <div class="history-meta">${escapeHtml(item.invDate || '')} · ${escapeHtml(formatHistoryDate(item.savedAt))}</div>
+          </div>
+          <div class="history-total">${formatRp(item.totalAmount || 0)}</div>
+          <div class="history-actions">
+            <button class="history-action dup" onclick="duplicateInvoice(${index})">Duplikat</button>
+            <button class="history-action" onclick="loadHistoryItem(${index})">Buka</button>
+            <button class="history-action delete" onclick="deleteHistoryItem(${index})">Hapus</button>
+          </div>
+        </div>`).join('');
+    }
+
+    function loadHistoryItem(index){
+      const item = readHistory()[index];
+      if(!item || !item.data) return;
+      applyInvoiceData(item.data);
+      closeHistory();
+      setAutosaveStatus('Invoice dari riwayat dimuat');
+      showToast('Invoice dimuat dari riwayat');
+    }
+
+    function deleteHistoryItem(index){
+      const items = readHistory();
+      if(!items[index]) return;
+      items.splice(index, 1);
+      writeHistory(items);
+      renderHistory();
+      showToast('Invoice dihapus dari riwayat');
+    }
+
+    function clearHistory(){
+      const items = readHistory();
+      if(!items.length) return;
+      if(!confirm('Hapus semua riwayat invoice dari browser ini?')) return;
+      writeHistory([]);
+      renderHistory();
+      showToast('Semua riwayat dihapus');
+    }
+
+    function applyInvoiceData(data){
+      isApplyingData = true;
+      document.getElementById('invNo').value = data.invNo || '';
+      document.getElementById('invDate').value = data.invDate || '';
+      document.getElementById('custName').value = data.custName || '';
+      document.getElementById('payMethod').value = data.payMethod || 'Transfer';
+      syncInvoiceSequence(data.invNo);
+
+      const dpField = document.getElementById('dpInput');
+      dpField.value = (data.dp !== undefined) ? data.dp : '';
+      formatHargaInput(dpField);
+
+      const discountField = document.getElementById('discountInput');
+      discountField.value = data.discount !== undefined ? data.discount : '';
+      formatRateInput(discountField);
+      const taxField = document.getElementById('taxInput');
+      taxField.value = data.tax !== undefined ? data.tax : '';
+      formatRateInput(taxField);
+
+      setLunas(!!data.lunas);
+      if(data.lunasPos && data.lunasPos.left != null && data.lunasPos.top != null){
+        setStampPosition(data.lunasPos.left, data.lunasPos.top);
+      }
+      document.getElementById('rows').innerHTML = '';
+      (data.rows || []).forEach(r => addRow(r));
+      if(!data.rows || data.rows.length === 0) addRow();
+      if(data.terms && data.terms.length){
+        document.getElementById('termsList').innerHTML = data.terms.map(t => `<li>${escapeHtml(t)}</li>`).join('');
+      }
+      recalcTotal();
+      isApplyingData = false;
+      scheduleAutosave();
+    }
+
+    function downloadJSON(data, filename){
+      const blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    function saveInvoice(){
+      const data = gatherInvoiceData();
+      recordHistory(data);
+      const fname = `invoice_${sanitizeFilename(data.invNo || data.custName)}.json`;
+      downloadJSON(data, fname);
+      setAutosaveStatus('Invoice tersimpan ke riwayat');
+      showToast('Invoice tersimpan ke riwayat & terunduh');
+    }
+
+    function formatWhatsAppNumber(value){
+      let number = String(value || '').replace(/\D/g,'');
+      if(number.indexOf('0') === 0) number = '62' + number.slice(1);
+      return number;
+    }
+

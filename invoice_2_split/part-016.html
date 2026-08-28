@@ -1,0 +1,162 @@
+  <div class="modal-backdrop" id="historyModal" role="dialog" aria-modal="true" aria-labelledby="historyTitle">
+    <div class="modal">
+      <div class="modal-head">
+        <div>
+          <div class="modal-title" id="historyTitle">Riwayat Invoice</div>
+          <div class="modal-sub">Invoice tersimpan di browser ini</div>
+        </div>
+        <button class="modal-close" onclick="closeHistory()" title="Tutup">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="history-tools">
+          <label for="historyMonth">Rekap Bulan</label>
+          <input type="month" id="historyMonth" class="history-month">
+          <button class="modal-btn" onclick="exportHistoryCSV()">Export Rekap CSV</button>
+        </div>
+        <div class="history-list" id="historyList"></div>
+      </div>
+      <div class="modal-foot">
+        <button class="modal-btn ghost-red" onclick="clearHistory()">Hapus Semua Riwayat</button>
+        <button class="modal-btn" onclick="closeHistory()">Tutup</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- m² Calculator Popover -->
+  <div class="m2-calc-popover" id="m2CalcPopover">
+    <div class="m2-calc-title">Kalkulator m²</div>
+    <div class="m2-calc-units" role="group" aria-label="Pilih satuan">
+      <button type="button" class="m2-calc-unit-btn active" data-unit="cm" onclick="setM2CalcUnit('cm')">cm</button>
+      <button type="button" class="m2-calc-unit-btn" data-unit="m" onclick="setM2CalcUnit('m')">m</button>
+    </div>
+    <div class="m2-calc-row">
+      <label for="m2CalcW">Lebar</label>
+      <input id="m2CalcW" type="text" inputmode="decimal" placeholder="0" value="">
+      <span class="unit" id="m2CalcUnitW">cm</span>
+    </div>
+    <div class="m2-calc-row">
+      <label for="m2CalcH">Panjang</label>
+      <input id="m2CalcH" type="text" inputmode="decimal" placeholder="0" value="">
+      <span class="unit" id="m2CalcUnitH">cm</span>
+    </div>
+    <div class="m2-calc-result">
+      <span class="r-label">Hasil</span>
+      <span class="r-value" id="m2CalcResult">0 m²</span>
+    </div>
+    <div class="m2-calc-btns">
+      <button class="cancel" onclick="closeM2Calc()">Batal</button>
+      <button class="apply" onclick="applyM2Calc()">Terapkan</button>
+    </div>
+  </div>
+
+  <!-- Tiered price editor popover -->
+  <div class="tier-popover" id="tierPopover">
+    <div class="m2-calc-title">Harga Bertingkat</div>
+    <div class="tier-hint">Satu baris per tier: <b>jumlah minimal = harga</b>.<br>Contoh: 2=8000, 11=7000.<br>Harga di kolom HARGA adalah harga dasar (untuk 1 pcs).</div>
+    <textarea id="tierEditorText" spellcheck="false" placeholder="2=8000&#10;11=7000&#10;51=6500"></textarea>
+    <div class="m2-calc-btns">
+      <button class="cancel" onclick="closeTierEditor()">Batal</button>
+      <button class="apply" onclick="saveTiers()">Simpan</button>
+    </div>
+  </div>
+
+  <!-- Global autocomplete popup for product suggestions -->
+  <div class="autocomplete-pop" id="productSuggestBox" role="listbox"></div>
+
+  <!-- Toast notifications -->
+  <div class="toast-wrap" id="toastWrap" aria-live="polite"></div>
+
+  <script>
+    let rowCounter = 0;
+    let productCatalog = [];
+    let autosaveTimer = null;
+    let isApplyingData = false;
+
+    const DRAFT_KEY = 'pp_invoice_draft_v1';
+    const HISTORY_KEY = 'pp_invoice_history_v1';
+    const SEQUENCE_KEY = 'pp_invoice_sequence_v1';
+
+    function formatRp(num){
+      if(isNaN(num)) num = 0;
+      return 'Rp ' + Math.round(num).toLocaleString('id-ID');
+    }
+
+    function parseNum(v){
+      const n = parseFloat(String(v).replace(/[^0-9.\-]/g,''));
+      return isNaN(n) ? 0 : n;
+    }
+
+    function parseThousands(v){
+      const digits = String(v).replace(/[^0-9]/g,'');
+      return digits ? parseInt(digits, 10) : 0;
+    }
+
+    function formatHargaInput(inp){
+      const digits = inp.value.replace(/[^0-9]/g,'');
+      const caretFromEnd = inp.value.length - (inp.selectionEnd || inp.value.length);
+      inp.value = digits ? parseInt(digits, 10).toLocaleString('id-ID') : '';
+      const pos = Math.max(0, inp.value.length - caretFromEnd);
+      if(typeof inp.setSelectionRange === 'function'){
+        inp.setSelectionRange(pos, pos);
+      }
+    }
+
+    function formatM2Input(inp){
+      const caretFromEnd = inp.value.length - (inp.selectionEnd || inp.value.length);
+      let raw = inp.value.replace(/[^0-9,]/g, '');
+      const firstComma = raw.indexOf(',');
+      if(firstComma !== -1){
+        raw = raw.slice(0, firstComma + 1) + raw.slice(firstComma + 1).replace(/,/g, '');
+      }
+      let [intPart, decPart] = raw.split(',');
+      intPart = intPart ? String(parseInt(intPart, 10)) : '';
+      const formattedInt = intPart ? parseInt(intPart, 10).toLocaleString('id-ID') : '';
+      inp.value = (raw.includes(',')) ? formattedInt + ',' + (decPart || '') : formattedInt;
+      const pos = Math.max(0, inp.value.length - caretFromEnd);
+      if(typeof inp.setSelectionRange === 'function'){
+        inp.setSelectionRange(pos, pos);
+      }
+    }
+
+    function parseM2(v){
+      const n = parseFloat(String(v).replace(/\./g, '').replace(',', '.'));
+      return isNaN(n) ? 0 : n;
+    }
+
+    function autoGrow(ta){
+      ta.style.height = 'auto';
+      ta.style.height = ta.scrollHeight + 'px';
+    }
+
+    function parseCatalogText(value){
+      return String(value || '').split('\n').map(line => {
+        const parts = line.split('|').map(part => part.trim());
+        if(!parts[0]) return null;
+        return {name:parts[0], description:parts[1] || '', harga:parts[2] || '', tiers:parts[3] || ''};
+      }).filter(Boolean);
+    }
+
+    function catalogToText(){
+      return productCatalog.map(item =>
+        [item.name, item.description, item.harga, item.tiers || ''].join(' | ')
+      ).join('\n');
+    }
+
+    // ---- Catalog CSV import/export ----
+    function csvEscape(value){
+      return '"' + String(value == null ? '' : value).replace(/"/g, '""') + '"';
+    }
+
+    function downloadBlob(blob, filename){
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+

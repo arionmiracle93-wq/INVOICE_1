@@ -1,0 +1,193 @@
+    function focusCell(tr, colIndex, cursorPos){
+      if(!tr) return false;
+      const td = tr.children[colIndex];
+      if(!td) return false;
+      const input = td.querySelector('input, textarea');
+      if(!input) return false;
+      input.focus();
+      if(typeof input.setSelectionRange === 'function'){
+        const pos = cursorPos === 'start' ? 0 : input.value.length;
+        input.setSelectionRange(pos, pos);
+      }
+      return true;
+    }
+
+    document.getElementById('rows').addEventListener('keydown', function(e){
+      const el = e.target;
+      if(el.tagName !== 'INPUT' && el.tagName !== 'TEXTAREA') return;
+      if(el.classList && el.classList.contains('produk') && document.getElementById('productSuggestBox').classList.contains('open')) return;
+      const td = el.closest('td');
+      const tr = td.closest('tr');
+      const cellIndex = Array.prototype.indexOf.call(tr.children, td);
+
+      if(e.key === 'ArrowUp'){
+        e.preventDefault();
+        focusCell(tr.previousElementSibling, cellIndex, 'end');
+      } else if(e.key === 'ArrowDown'){
+        e.preventDefault();
+        if(tr.nextElementSibling){
+          focusCell(tr.nextElementSibling, cellIndex, 'end');
+        } else {
+          addRow();
+          focusCell(document.getElementById('rows').lastElementChild, cellIndex, 'end');
+        }
+      } else if(e.key === 'ArrowLeft'){
+        if(el.selectionStart === 0 && el.selectionEnd === 0){
+          let idx = cellIndex - 1;
+          while(idx >= 0 && !tr.children[idx].querySelector('input, textarea')) idx--;
+          if(idx >= 0){
+            e.preventDefault();
+            focusCell(tr, idx, 'end');
+          }
+        }
+      } else if(e.key === 'ArrowRight'){
+        if(el.selectionStart === el.value.length && el.selectionEnd === el.value.length){
+          let idx = cellIndex + 1;
+          while(idx < tr.children.length && !tr.children[idx].querySelector('input, textarea')) idx++;
+          if(idx < tr.children.length){
+            e.preventDefault();
+            focusCell(tr, idx, 'start');
+          }
+        }
+      }
+    });
+
+    function readSequence(){
+      try{
+        const raw = localStorage.getItem(SEQUENCE_KEY);
+        return raw ? JSON.parse(raw) : {};
+      }catch(err){
+        return {};
+      }
+    }
+
+    function writeSequence(sequence){
+      try{ localStorage.setItem(SEQUENCE_KEY, JSON.stringify(sequence)); }catch(err){}
+    }
+
+    function todayKey(){
+      const now = new Date();
+      return `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}`;
+    }
+
+    function nextInvoiceNumber(reserve){
+      const sequence = readSequence();
+      const key = todayKey();
+      const next = (parseInt(sequence[key], 10) || 0) + 1;
+      if(reserve){
+        sequence[key] = next;
+        writeSequence(sequence);
+      }
+      return `INV-${key}-${String(next).padStart(3,'0')}`;
+    }
+
+    function syncInvoiceSequence(invoiceNo){
+      const match = String(invoiceNo || '').match(/^INV-(\d{8})-(\d+)$/i);
+      if(!match) return;
+      const sequence = readSequence();
+      const number = parseInt(match[2], 10) || 0;
+      if(number > (parseInt(sequence[match[1]], 10) || 0)){
+        sequence[match[1]] = number;
+        writeSequence(sequence);
+      }
+    }
+
+    function setDefaultMeta(reserve){
+      const now = new Date();
+      const dd = String(now.getDate()).padStart(2,'0');
+      const mm = String(now.getMonth()+1).padStart(2,'0');
+      const yyyy = now.getFullYear();
+      document.getElementById('invDate').value = `${dd} - ${mm} - ${yyyy}`;
+      document.getElementById('invNo').value = nextInvoiceNumber(!!reserve);
+    }
+
+    function escapeHtml(s){
+      const div = document.createElement('div');
+      div.textContent = s;
+      return div.innerHTML;
+    }
+
+    function sanitizeFilename(s){
+      return (s || 'invoice').trim().replace(/[^a-z0-9\-_]+/gi, '_').replace(/^_+|_+$/g,'') || 'invoice';
+    }
+
+    function gatherInvoiceData(){
+      const rows = [];
+      document.querySelectorAll('#rows tr').forEach(tr=>{
+        rows.push({
+          produk: tr.querySelector('.produk').value,
+          keterangan: tr.children[1].querySelector('textarea').value,
+          m2: tr.querySelector('.m2').value,
+          qty: tr.querySelector('.qty').value,
+          harga: tr.querySelector('.harga').value,
+          baseHarga: tr.dataset.baseHarga || '',
+          tiers: tr.dataset.tiers || ''
+        });
+      });
+      const terms = Array.from(document.querySelectorAll('#termsList li')).map(li => li.textContent.trim());
+      const stamp = document.getElementById('lunasStamp');
+      const invoiceTotals = getInvoiceTotals();
+      return {
+        invNo: document.getElementById('invNo').value,
+        invDate: document.getElementById('invDate').value,
+        custName: document.getElementById('custName').value,
+        payMethod: document.getElementById('payMethod').value,
+        dp: document.getElementById('dpInput').value,
+        discount: document.getElementById('discountInput').value,
+        tax: document.getElementById('taxInput').value,
+        rows: rows,
+        terms: terms,
+        subtotalAmount: invoiceTotals.subtotal,
+        discountAmount: invoiceTotals.discountAmount,
+        taxAmount: invoiceTotals.taxAmount,
+        totalAmount: invoiceTotals.total,
+        lunas: stamp.classList.contains('active'),
+        lunasPos: (stamp.dataset.leftPct && stamp.dataset.topPct) ? {left: stamp.dataset.leftPct, top: stamp.dataset.topPct} : null,
+        savedAt: new Date().toISOString()
+      };
+    }
+
+    function setAutosaveStatus(message){
+      const status = document.getElementById('autosaveStatus');
+      if(status) status.textContent = message;
+    }
+
+    function scheduleAutosave(){
+      if(isApplyingData) return;
+      clearTimeout(autosaveTimer);
+      setAutosaveStatus('Menyimpan draft...');
+      autosaveTimer = setTimeout(saveDraft, 420);
+    }
+
+    function saveDraft(){
+      if(isApplyingData) return;
+      try{
+        const data = gatherInvoiceData();
+        data.autosavedAt = new Date().toISOString();
+        localStorage.setItem(DRAFT_KEY, JSON.stringify(data));
+        setAutosaveStatus('Draft otomatis tersimpan');
+      }catch(err){
+        setAutosaveStatus('Draft belum tersimpan');
+      }
+    }
+
+    function readDraft(){
+      try{
+        const raw = localStorage.getItem(DRAFT_KEY);
+        return raw ? JSON.parse(raw) : null;
+      }catch(err){
+        return null;
+      }
+    }
+
+    function clearDraft(){
+      try{ localStorage.removeItem(DRAFT_KEY); }catch(err){}
+    }
+
+    function formatHistoryDate(value){
+      if(!value) return '';
+      const date = new Date(value);
+      if(isNaN(date.getTime())) return value;
+      return date.toLocaleString('id-ID', {dateStyle:'medium', timeStyle:'short'});
+    }
+

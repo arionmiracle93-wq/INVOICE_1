@@ -1,0 +1,168 @@
+    function addRow(data){
+      rowCounter++;
+      const tbody = document.getElementById('rows');
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td><div class="product-field"><textarea class="produk" rows="1" autocomplete="off"></textarea><div class="product-suggestions" role="listbox"></div></div></td>
+        <td><textarea rows="1"></textarea></td>
+        <td><input type="text" class="r-num m2" inputmode="decimal"></td>
+        <td><input type="text" class="r-num qty"></td>
+        <td class="harga-cell">
+          <input type="text" class="r-num harga">
+          <button type="button" class="tier-btn" onclick="openTierEditor(event, this)" title="Harga bertingkat (mis. 2=8000;11=7000)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4v-4h4v-4h4V8h4"/><path d="M16 8h4v4"/></svg>
+          </button>
+        </td>
+        <td class="jumlah" data-val="0">Rp 0</td>
+        <td class="del"><button class="del-btn" onclick="delRow(this)" title="Hapus baris"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg></button></td>
+      `;
+      tbody.appendChild(tr);
+      tr.querySelectorAll('input').forEach(inp=>{
+        if(inp.classList.contains('harga')){
+          inp.addEventListener('input', ()=>{
+            formatHargaInput(inp);
+            tr.dataset.baseHarga = parseThousands(inp.value) || '';
+            delete tr.dataset.autoPrice;
+            recalcRow(tr);
+          });
+        } else if(inp.classList.contains('m2')){
+          inp.addEventListener('input', ()=>{ formatM2Input(inp); recalcRow(tr); });
+          inp.addEventListener('focus', ()=>{ lastM2Input = inp; });
+          inp.addEventListener('click', ()=>{ lastM2Input = inp; });
+        } else {
+          inp.addEventListener('input', ()=>recalcRow(tr));
+        }
+      });
+      tr.querySelectorAll('textarea').forEach(ta=>{
+        ta.addEventListener('input', ()=>autoGrow(ta));
+      });
+      bindProductAutocomplete(tr);
+      if(data){
+        tr.children[0].querySelector('textarea').value = data.produk || '';
+        tr.children[1].querySelector('textarea').value = data.keterangan || '';
+        tr.querySelector('.m2').value = data.m2 || '';
+        formatM2Input(tr.querySelector('.m2'));
+        tr.querySelector('.qty').value = data.qty || '';
+        tr.querySelector('.harga').value = data.harga || '';
+        formatHargaInput(tr.querySelector('.harga'));
+        tr.dataset.baseHarga = data.baseHarga || '';
+        setRowTiers(tr, normalizeTiers(data.tiers));
+        delete tr.dataset.autoPrice;
+      }
+      tr.querySelectorAll('textarea').forEach(ta=>autoGrow(ta));
+      recalcRow(tr);
+    }
+
+    function delRow(btn){
+      btn.closest('tr').remove();
+      recalcTotal();
+      scheduleAutosave();
+    }
+
+    // ---- Tiered pricing helpers ----
+    function getRowTiers(tr){
+      try{
+        const t = tr.dataset.tiers ? JSON.parse(tr.dataset.tiers) : [];
+        return Array.isArray(t) ? t : [];
+      }catch(e){ return []; }
+    }
+
+    function setRowTiers(tr, tiers){
+      tr.dataset.tiers = JSON.stringify(tiers || []);
+      const btn = tr.querySelector('.tier-btn');
+      if(btn){
+        btn.classList.toggle('active', !!(tiers && tiers.length));
+        btn.title = (tiers && tiers.length)
+          ? 'Harga bertingkat: ' + tiers.map(t => `${t.min} pcs = Rp ${t.price.toLocaleString('id-ID')}`).join('; ')
+          : 'Harga bertingkat (mis. 2=8000;11=7000)';
+      }
+    }
+
+    function parseTiers(text){
+      if(!String(text || '').trim()) return [];
+      const out = [];
+      String(text).split(/[\n;,]+/).forEach(part => {
+        const m = String(part).trim().match(/^(\d+)\s*[=:]\s*([\d.,]+)$/);
+        if(m){
+          out.push({
+            min: parseInt(m[1], 10),
+            price: parseInt(String(m[2]).replace(/[^\d]/g, ''), 10) || 0
+          });
+        }
+      });
+      out.sort((a, b) => a.min - b.min);
+      return out;
+    }
+
+    function tiersToString(tiers){
+      return (tiers || []).map(t => `${t.min}=${t.price}`).join(';');
+    }
+
+    function normalizeTiers(value){
+      if(Array.isArray(value)) return value;
+      if(!value) return [];
+      if(typeof value === 'string'){
+        try{
+          const parsed = JSON.parse(value);
+          if(Array.isArray(parsed)) return parsed;
+        }catch(e){}
+        return parseTiers(value);
+      }
+      return [];
+    }
+
+    function tierPriceFor(qty, tiers){
+      let found = null;
+      (tiers || []).forEach(t => { if(qty >= t.min) found = t; });
+      return found ? found.price : null;
+    }
+    // --------------------------------
+
+    function recalcRow(tr){
+      const m2 = parseM2(tr.querySelector('.m2').value);
+      const qty = parseNum(tr.querySelector('.qty').value) || 0;
+      const hargaInput = tr.querySelector('.harga');
+      const tiers = getRowTiers(tr);
+
+      // Auto-apply tier price display (kecuali user sedang mengetik manual)
+      if(tiers.length && qty > 0 && !tr.dataset.autoPrice){
+        const tierPrice = tierPriceFor(qty, tiers);
+        if(tierPrice != null){
+          hargaInput.value = tierPrice.toLocaleString('id-ID');
+          tr.dataset.autoPrice = '1';
+        }
+      }
+
+      let baseHarga = parseInt(tr.dataset.baseHarga, 10) || 0;
+      if(!baseHarga) baseHarga = parseThousands(hargaInput.value) || 0;
+      tr.dataset.baseHarga = baseHarga || '';
+
+      const harga = parseThousands(hargaInput.value) || 0;
+      const multiplier = m2 > 0 ? m2 : 1;
+      const jumlah = multiplier * qty * harga;
+      const cell = tr.querySelector('.jumlah');
+      cell.dataset.val = jumlah;
+      cell.textContent = formatRp(jumlah);
+      recalcTotal();
+    }
+
+    // ---- Tier editor popover ----
+    let tierEditorRow = null;
+
+    function openTierEditor(e, btn){
+      e && e.stopPropagation();
+      tierEditorRow = btn.closest('tr');
+      document.getElementById('tierEditorText').value =
+        getRowTiers(tierEditorRow).map(t => `${t.min}=${t.price}`).join('\n');
+      const popover = document.getElementById('tierPopover');
+      const rect = btn.getBoundingClientRect();
+      const popH = 230;
+      let left = Math.max(8, Math.min(rect.left - 120, window.innerWidth - 296));
+      let top = rect.bottom + 8;
+      if(top + popH > window.innerHeight - 8) top = Math.max(8, rect.top - popH - 8);
+      popover.style.left = left + 'px';
+      popover.style.top = top + 'px';
+      popover.classList.add('open');
+      document.getElementById('tierEditorText').focus();
+    }
+

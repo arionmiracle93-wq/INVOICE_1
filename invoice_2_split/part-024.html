@@ -1,0 +1,149 @@
+    function sendWhatsApp(){
+      const phone = formatWhatsAppNumber(document.getElementById('waLine').value);
+      if(!phone || phone.length < 10){
+        alert('Nomor WhatsApp belum valid. Perbarui nomor di menu Pengaturan.');
+        return;
+      }
+      const data = gatherInvoiceData();
+      const totals = getInvoiceTotals();
+      const lines = data.rows.filter(row => row.produk || row.keterangan || row.qty || row.harga).map((row, index) => {
+        const m2 = row.m2 ? `, ${row.m2} m2` : '';
+        const qty = row.qty ? ` x ${row.qty}` : '';
+        const harga = row.harga ? ` @ Rp ${row.harga}` : '';
+        return `${index + 1}. ${row.produk || 'Produk'}${m2}${qty}${harga}`;
+      });
+      showToast('Membuka WhatsApp...');
+      const message = [
+        `Halo, berikut ringkasan invoice ${data.invNo || '-'}.`,
+        `Customer: ${data.custName || '-'}`,
+        `Tanggal: ${data.invDate || '-'}`,
+        '',
+        'Detail pesanan:',
+        ...(lines.length ? lines : ['- Belum ada detail produk']),
+        '',
+        `Subtotal: ${formatRp(totals.subtotal)}`,
+        ...(totals.discountRate ? [`Diskon (${totals.discountRate}%): - ${formatRp(totals.discountAmount)}`] : []),
+        ...(totals.taxRate ? [`PPN (${totals.taxRate}%): ${formatRp(totals.taxAmount)}`] : []),
+        `Total: ${formatRp(totals.total)}`,
+        `DP: ${data.dp || '0'}`,
+        `Metode pembayaran: ${data.payMethod || '-'}`
+      ].join('\n');
+      window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`, '_blank', 'noopener');
+    }
+
+    function handleLoadFile(evt){
+      const file = evt.target.files[0];
+      if(!file) return;
+      const reader = new FileReader();
+      reader.onload = e => {
+        try{
+          const data = JSON.parse(e.target.result);
+          applyInvoiceData(data);
+          showToast('File invoice berhasil dimuat');
+        }catch(err){
+          alert('File invoice tidak valid atau rusak.');
+        }
+      };
+      reader.readAsText(file);
+      evt.target.value = '';
+    }
+
+    function newInvoice(){
+      if(!confirm('Invoice saat ini akan disimpan sebagai file terlebih dahulu, lalu form dikosongkan untuk invoice baru. Lanjutkan?')) return;
+      saveInvoice();
+      document.getElementById('rows').innerHTML = '';
+      document.getElementById('custName').value = '';
+      document.getElementById('dpInput').value = '';
+      document.getElementById('discountInput').value = '';
+      document.getElementById('taxInput').value = '';
+      setLunas(false);
+      const stamp = document.getElementById('lunasStamp');
+      stamp.style.left = '';
+      stamp.style.top = '';
+      stamp.style.right = '';
+      delete stamp.dataset.leftPct;
+      delete stamp.dataset.topPct;
+      setDefaultMeta(true);
+      for(let i=0;i<3;i++) addRow();
+      recalcTotal();
+      scheduleAutosave();
+      showToast('Invoice baru siap');
+    }
+
+    // ---- Toast notifications ----
+    function showToast(message, type){
+      const wrap = document.getElementById('toastWrap');
+      if(!wrap) return;
+      const toast = document.createElement('div');
+      toast.className = 'toast ' + (type || 'success');
+      toast.textContent = message;
+      wrap.appendChild(toast);
+      setTimeout(()=>{
+        toast.classList.add('out');
+        setTimeout(()=>toast.remove(), 280);
+      }, 2600);
+    }
+
+    // ---- Signature & stamp (base64 stored in settings) ----
+    let sigData = '';
+    let stampData = '';
+
+    function readImageFile(input, callback){
+      const file = input.files && input.files[0];
+      if(!file) return;
+      if(file.size > 800 * 1024){
+        showToast('Gambar terlalu besar, maksimal 800KB', 'error');
+        input.value = '';
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = e => callback(e.target.result);
+      reader.readAsDataURL(file);
+    }
+
+    function refreshSigPreviews(){
+      const sigBox = document.getElementById('sigPreview');
+      const sigImg = document.getElementById('sigPreviewImg');
+      if(sigData){ sigImg.src = sigData; sigBox.classList.add('visible'); }
+      else sigBox.classList.remove('visible');
+      const stampBox = document.getElementById('stampPreview');
+      const stampImg = document.getElementById('stampPreviewImg');
+      if(stampData){ stampImg.src = stampData; stampBox.classList.add('visible'); }
+      else stampBox.classList.remove('visible');
+    }
+
+    function removeSignature(){
+      sigData = '';
+      document.getElementById('setSignatureFile').value = '';
+      refreshSigPreviews();
+    }
+
+    function removeStamp(){
+      stampData = '';
+      document.getElementById('setStampFile').value = '';
+      refreshSigPreviews();
+    }
+
+    function renderSignatureBlock(settings){
+      const s = settings || {};
+      const block = document.getElementById('signatureBlock');
+      const sigBox = document.getElementById('companySigBox');
+      const sigImg = document.getElementById('companySigImg');
+      const stampBoxEl = document.getElementById('stampBox');
+      const stampImgEl = document.getElementById('stampImg');
+      const useSig = !!s.signature;
+      const useStamp = !!s.stamp;
+      sigBox.style.display = useSig ? 'block' : 'none';
+      if(useSig) sigImg.src = s.signature;
+      stampBoxEl.style.display = useStamp ? 'block' : 'none';
+      if(useStamp) stampImgEl.src = s.stamp;
+      block.classList.toggle('visible', useSig || useStamp);
+    }
+
+    document.getElementById('setSignatureFile').addEventListener('change', function(){
+      readImageFile(this, data => { sigData = data; refreshSigPreviews(); });
+    });
+    document.getElementById('setStampFile').addEventListener('change', function(){
+      readImageFile(this, data => { stampData = data; refreshSigPreviews(); });
+    });
+
